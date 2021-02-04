@@ -4,7 +4,7 @@ import random
 hasJokers = True
 
 # all possible values and suits
-values = "King Queen Jack 10 9 8 7 6 5 4 3 2 1".split()
+values = "Ace King Queen Jack 10 9 8 7 6 5 4 3 2".split()
 suits = "Diamonds Spades Hearts Clubs".split()
 
 # class for a singular card
