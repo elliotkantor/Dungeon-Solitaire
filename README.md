@@ -8,3 +8,7 @@ be lost in the dungeon forever. The objective is to find
 the tomb hoards of four ancient kings, collect as much
 additional treasure as possible, and make it out alive."
 - The Official Dungeon Solitaire: Tomb of Four Kings Guide
+## Installation
+1. Install python 3.*
+1. Install dependencies with `pip install -r requirements.txt`
+1. To run the program, run `python dungeonSolitaire.py` from the command line
