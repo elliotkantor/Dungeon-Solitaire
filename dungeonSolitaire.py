@@ -31,6 +31,33 @@ def countScore():
     totalScore = (playerStats["kings"] * 10) + (playerStats["scroll"] * 6) + sum([int(item.value) for item in playerStats["treasure"]])
     return kingsFound, totalScore
 
+def evalueateEncounter(testCard, actionCard):
+    if int(testCard.value) >= int(actionCard.value):
+        return True
+    return False
+
+def getUserInput(jacks, treasure, isMonster=False, monster=cards.Card("0", "Blank")):
+    validTreasure = [cardObj for cardObj in treasure if int(cardObj.value) > int(monster.value)]
+    if len(jacks) == 1 and len(validTreasure) > 0 and isMonster:
+        choice = pyip.inputInt("Would you like to (1) use a powerup, (2) use your treasure to escape, or (3) draw again? ", min=1, max=3)
+        if choice == 1:
+            choice = "powerup"
+        elif choice == 2:
+            choice = "treasure"
+        else:
+            choice = "draw"
+    elif len(jacks) == 1:
+        choice = pyip.inputInt("Would you like to (1) use a powerup or (2) draw again?", min=1, max=2)
+        choice = "powerup" if choice == 1 else "draw"
+    elif len(validTreasure) > 0:
+        choice = pyip.inputInt("Would you like to (1) use treasure to escape or (2) draw again? ", min=1, max=2)
+        choice = "treasure" if choice == 1 else "draw"
+    else:
+        print("You must draw again.")
+        choice = "draw"
+    return choice
+
+
 if __name__ == "__main__":
     banner.title1()
 
@@ -52,13 +79,13 @@ if __name__ == "__main__":
         playedCards = []  # store a multi-dimensional list of lists, with inner lists representing one "step"
 
         playerStats = {
-            "burnt torches": 0,
-            "scroll": 0,
-            "kings": 0,
-            "berserk": 0,
-            "disarm": 0,
-            "lock pick": 0,
-            "dodge": 0,
+            "burnt torches": [],
+            "scroll": [],
+            "kings": [],
+            "berserk": [],
+            "disarm": [],
+            "lock pick": [],
+            "dodge": [],
             "treasure": []
         }
         # loop of moves. Each cycle is one step further
@@ -66,10 +93,10 @@ if __name__ == "__main__":
             # show player stats
             showStats()
             tempTreasure = {
-                "queens": 0,
-                "treasure": 0,
-                "kings": 0,
-                "scroll": 0
+                "queens": [],
+                "treasure": [],
+                "kings": [],
+                "scroll": []
             }
 
             moveCards = []  # list of all cards played in one move / "step"
@@ -78,6 +105,9 @@ if __name__ == "__main__":
                 turnAroundInput = pyip.inputInt("Would you like to (1) continue the delve or (2) begin to head back? ", min=1, max=2)
                 if turnAroundInput == 2:
                     direction = "retreat"
+
+            # will be populated with the designated action card. len == 0 if no action card yet
+            actionCard = []
 
             # place cards on top of each other until a single move is over. ie battling a monster
             while True:
@@ -88,54 +118,63 @@ if __name__ == "__main__":
                 deck.remove(drawnCard)
                 stepsOut = stepsOut + 1 if direction == "delve" else stepsOut - 1
 
-                # determine if card is action card or not
-                actionCard = True
-
                 # do action depending on if deck is trap, monster, or door, and repeat until passed
                 if drawnCard.value == "Jack":
                     # add to powerups
                     if drawnCard.suit == "Spades":
-                        playerStats["berserk"] += 1
+                        playerStats["berserk"].append(drawnCard)
                     elif drawnCard.suit == "Diamonds":
-                        playerStats["disarm"] += 1
+                        playerStats["disarm"].append(drawnCard)
                     elif drawnCard.suit == "Clubs":
-                        playerStats["lock pick"] += 1
+                        playerStats["lock pick"].append(drawnCard)
                     else:
-                        playerStats["dodge"] += 1
+                        playerStats["dodge"].append(drawnCard)
 
                 elif drawnCard.value == "Ace":
                     # add burnt torch
-                    playerStats["burnt torches"] += 1
+                    playerStats["burnt torches"].append(drawnCard)
 
                 elif drawnCard.suit == "Joker":
                     # obtain scroll of light
-                    tempTreasure["scroll"] += 1
+                    tempTreasure["scroll"].append(drawnCard)
 
                 elif drawnCard.value == "Queen":
                     # add divine favor if won
-                    tempTreasure["queens"] += 1
+                    tempTreasure["queens"].append(drawnCard)
 
                 elif drawnCard.value == "King":
                     # add king if won
-                    tempTreasure["kings"] += 1
+                    tempTreasure["kings"].append(drawnCard)
 
                 elif drawnCard.suit == "Spades":
                     # monster
-                    if actionCard:
+                    if len(actionCard) == 0:
                         print("You've encountered a monster!")
+                        actionCard.append(drawnCard)
+                    else:
+                        # do something with output of evaluate encounter and break statement
+                        userChoice = getUserInput()
+                        if userChoice == "draw":
+                            evalueateEncounter(drawnCard, actionCard[0])
 
                 elif drawnCard.suit == "Diamonds":
                     # trap / treasure
-
-                    if actionCard:
+                    if len(actionCard) == 0:
                         print("You've encountered a trap!")
+                        actionCard.append(drawnCard)
+                    else:
+                        evalueateEncounter(drawnCard, actionCard[0])
+
                 else:
                     # clubs - sealed doors
-                    if actionCard:
-                        print("You've encountered a sealed door!")
+                    if len(actionCard) == 0:
+                        print("You've encountered a locked door!")
+                        actionCard.append(drawnCard)
+                    else:
+                        evalueateEncounter(drawnCard, actionCard[0])
 
                 playerHealth = getPlayerHealth()
-                if checkIfLost(playerStats["burnt torches"], len(deck), playerHealth):
+                if checkIfLost(len(playerStats["burnt torches"]), len(deck), playerHealth):
                     # banner.die()
                     print("Game over!")
                     lost = True
@@ -149,9 +188,9 @@ if __name__ == "__main__":
             playerHealth = getPlayerHealth()
 
             # if they don't lose within the turn, they get their treasure
-            playerStats["scroll"] += tempTreasure["scroll"]
-            playerStats["kings"] += tempTreasure["kings"]
-            playerStats["treasure"] += tempTreasure["treasure"]
+            playerStats["scroll"].append(tempTreasure["scroll"])
+            playerStats["kings"].append(tempTreasure["kings"])
+            playerStats["treasure"].append(tempTreasure["treasure"])
 
             if stepsOut == 0 and direction == "retreat":
                 # returned safely
