@@ -4,6 +4,9 @@ import cards
 import random
 import pyinputplus as pyip
 import banner
+import logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s -  %(levelname)s -  %(message)s')
+# logging.disable(logging.CRITICAL) # to disable critical logs after this
 
 
 def getPlayerHealth():
@@ -22,41 +25,66 @@ def checkIfLost(numBurntTorches, numCardsLeft, health):
 def showStats():
     print(f"You have {getPlayerHealth()} health left.")
     print(f"You are {stepsOut} moves away from the start.")
-    pass
 
 def countScore():
     # write out points, breakdown, and final score (max possible is 100)
     kingsFound = playerStats["kings"]
     # 10 per king, face value of treasure, 6 for scroll
-    totalScore = (playerStats["kings"] * 10) + (playerStats["scroll"] * 6) + sum([int(item.value) for item in playerStats["treasure"]])
+    try:
+        # TODO: ensure there's no logic error here
+        treasureValues = sum([int(item.value) for item in playerStats["treasure"]])
+    except:
+        treasureValues = 0
+    totalScore = (len(playerStats["kings"]) * 10) + (len(playerStats["scroll"]) * 6) + treasureValues
     return kingsFound, totalScore
 
 def evalueateEncounter(testCard, actionCard):
+    """Returns true if you pass the encounter, false if you don't (and try again)"""
     if int(testCard.value) >= int(actionCard.value):
         return True
     return False
 
 def getUserInput(jacks, treasure, isMonster=False, monster=cards.Card("0", "Blank")):
-    validTreasure = [cardObj for cardObj in treasure if int(cardObj.value) > int(monster.value)]
-    if len(jacks) == 1 and len(validTreasure) > 0 and isMonster:
-        choice = pyip.inputInt("Would you like to (1) use a powerup, (2) use your treasure to escape, or (3) draw again? ", min=1, max=3)
-        if choice == 1:
-            choice = "powerup"
-        elif choice == 2:
-            choice = "treasure"
-        else:
-            choice = "draw"
-    elif len(jacks) == 1:
-        choice = pyip.inputInt("Would you like to (1) use a powerup or (2) draw again?", min=1, max=2)
-        choice = "powerup" if choice == 1 else "draw"
-    elif len(validTreasure) > 0:
-        choice = pyip.inputInt("Would you like to (1) use treasure to escape or (2) draw again? ", min=1, max=2)
-        choice = "treasure" if choice == 1 else "draw"
-    else:
-        print("You must draw again.")
-        choice = "draw"
+    # validTreasure = [cardObj for cardObj in treasure if int(cardObj.value) > int(monster.value)]
+    # if len(jacks) == 1 and len(validTreasure) > 0 and isMonster:
+    #     choice = pyip.inputInt("Would you like to (1) use a powerup, (2) use your treasure to escape, or (3) draw again? ", min=1, max=3)
+    #     if choice == 1:
+    #         choice = "powerup"
+    #     elif choice == 2:
+    #         choice = "treasure"
+    #     else:
+    #         choice = "draw"
+    # elif len(jacks) == 1:
+    #     choice = pyip.inputInt("Would you like to (1) use a powerup or (2) draw again?", min=1, max=2)
+    #     choice = "powerup" if choice == 1 else "draw"
+    # elif len(validTreasure) > 0:
+    #     choice = pyip.inputInt("Would you like to (1) use treasure to escape or (2) draw again? ", min=1, max=2)
+    #     choice = "treasure" if choice == 1 else "draw"
+    # else:
+    #     print("You must draw again.")
+    #     choice = "draw"
+    choice = pyip.inputMenu(["use powerup", "use treasure drop", "draw again"], numbered=True)
     return choice
 
+def hasValidTreasure(actionCard):
+    """Returns true if the user can drop treasure to escape a monster"""
+    availableTreasure = []
+    for king in playerStats["kings"]:
+        availableTreasure.append(10)
+    if len(playerStats["scroll"]) > 0:
+        availableTreasure.append(6)
+    logging.debug(playerStats)
+    for card in playerStats["treasure"]:
+        # BUG: no attribute of card.value. Card is a list, not an object
+        logging.debug(card.name)
+        availableTreasure.append(int(card.value))
+    # filter available treasure to only that's big enough
+    availableTreasure = [val for val in availableTreasure if val >= int(actionCard.value)]
+    # return true if there is treasure (len > 0)
+    return len(availableTreasure) > 0
+
+def loseHealth(healthCards):
+    pass
 
 if __name__ == "__main__":
     banner.title1()
@@ -116,7 +144,6 @@ if __name__ == "__main__":
                 drawnCard = deck[-1]
                 moveCards.append(drawnCard)
                 deck.remove(drawnCard)
-                stepsOut = stepsOut + 1 if direction == "delve" else stepsOut - 1
 
                 # do action depending on if deck is trap, monster, or door, and repeat until passed
                 if drawnCard.value == "Jack":
@@ -151,11 +178,31 @@ if __name__ == "__main__":
                     if len(actionCard) == 0:
                         print("You've encountered a monster!")
                         actionCard.append(drawnCard)
+
+                        # stop interaction if divine intervention
+                        if len(tempTreasure["queens"]) > 0:
+                            print("The divine intervention is here to save you!")
+                            continue
+
+                        userOptions = ["draw again"]
+                        if len(playerStats["berserk"]) == 1:
+                            userOptions.append("use Go Berserk powerup")
+                        if hasValidTreasure(actionCard[0]):
+                            userOptions.append("use treasure drop")
+                        if len(userOptions) > 1:
+                            choice = pyip.inputMenu(userOptions, numbered=True)
+                            # TODO: do something with player choice
+                        else:
+                            choice = userOptions[0]
                     else:
                         # do something with output of evaluate encounter and break statement
-                        userChoice = getUserInput()
-                        if userChoice == "draw":
-                            evalueateEncounter(drawnCard, actionCard[0])
+                        beatsObstacle = evalueateEncounter(drawnCard, actionCard[0])
+                        if beatsObstacle:
+                            break
+                        else:
+                            # TODO: lose health by the amount of the difference in the monster and the drawn card
+                            # healthCards = healthCards[:-(int(drawnCard.value))]
+                            pass
 
                 elif drawnCard.suit == "Diamonds":
                     # trap / treasure
@@ -163,7 +210,13 @@ if __name__ == "__main__":
                         print("You've encountered a trap!")
                         actionCard.append(drawnCard)
                     else:
-                        evalueateEncounter(drawnCard, actionCard[0])
+                        beatsObstacle = evalueateEncounter(drawnCard, actionCard[0])
+                        if beatsObstacle:
+                            # TODO: collect treasure
+                            break
+                        else:
+                            # TODO: lose health
+                            pass
 
                 else:
                     # clubs - sealed doors
@@ -171,7 +224,12 @@ if __name__ == "__main__":
                         print("You've encountered a locked door!")
                         actionCard.append(drawnCard)
                     else:
-                        evalueateEncounter(drawnCard, actionCard[0])
+                        beatsObstacle = evalueateEncounter(drawnCard, actionCard[0])
+                        if beatsObstacle:
+                            break
+                        else:
+                            # TODO: remove cards from hand into discard (keep torches though)
+                            pass
 
                 playerHealth = getPlayerHealth()
                 if checkIfLost(len(playerStats["burnt torches"]), len(deck), playerHealth):
@@ -181,6 +239,8 @@ if __name__ == "__main__":
                     break
                 # break  # for testing
     
+            # change number of steps from start each move (not each card, though)
+            stepsOut = stepsOut + 1 if direction == "delve" else stepsOut - 1
             playedCards.append(moveCards)
 
             if lost:
@@ -188,16 +248,16 @@ if __name__ == "__main__":
             playerHealth = getPlayerHealth()
 
             # if they don't lose within the turn, they get their treasure
-            playerStats["scroll"].append(tempTreasure["scroll"])
-            playerStats["kings"].append(tempTreasure["kings"])
-            playerStats["treasure"].append(tempTreasure["treasure"])
+            # BUG: appends a list to the list, not each item
+            playerStats["scroll"].extend(tempTreasure["scroll"])
+            playerStats["kings"].extend(tempTreasure["kings"])
+            playerStats["treasure"].extend(tempTreasure["treasure"])
 
-            if stepsOut == 0 and direction == "retreat":
+            if stepsOut <= 0 and direction == "retreat":
                 # returned safely
                 print("You returned safely! Let's count your treasure.")
                 countScore()
  
-
         again = pyip.inputYesNo("Would you like to play again? (y/n) ")
         if again == "no":
             break
