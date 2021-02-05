@@ -7,13 +7,19 @@ import banner
 import logging
 from os import system, name
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s -  %(levelname)s -  %(message)s')
-# logging.disable(logging.CRITICAL) # to disable critical logs after this
+# logging.disable(logging.CRITICAL) # to disable logs after this
 
 # names of playing cards translated to game terms
 CARD_ALIASES = {
     "Spades": "monster",
     "Clubs": "door",
     "Diamonds": "trap"
+}
+
+ENEMY_POWERUPS = {
+    "Spades": "berserk",
+    "Clubs": "lock pick",
+    "Diamonds": "disarm"
 }
 
 def clearScreen():
@@ -34,6 +40,7 @@ def checkIfLost(numBurntTorches, numCardsLeft, health):
     if numBurntTorches == 4 and len(playerStats["scroll"]) == 1:
         print("You've burnt four torches, so you use the Scroll of Light!")
         playerStats["scroll"] = []
+        # TODO: remove one burnt torch so you don't die on the next card
         # didn't lose yet
     return False
 
@@ -62,18 +69,18 @@ def evalueateEncounter(testCard, actionCard):
 
 def hasValidTreasure(actionCard):
     """Returns true if the user can drop treasure to escape a monster"""
-    availableTreasure = []
+    treasureVals = []
     for king in playerStats["kings"]:
-        availableTreasure.append(10)
+        treasureVals.append(10)
     if len(playerStats["scroll"]) > 0:
-        availableTreasure.append(6)
+        treasureVals.append(6)
     logging.debug(playerStats)
     for card in playerStats["treasure"]:
         logging.debug(card.name)
-        availableTreasure.append(int(card.value))
+        treasureVals.append(int(card.value))
     # filter available treasure to only that's big enough
-    availableTreasure = [val for val in availableTreasure if val >= int(actionCard.value)]
-    # return true if there is treasure (len > 0)
+    availableTreasure = [val for val in treasureVals if val >= int(actionCard.value)]
+# return true if there is treasure (len > 0)
     return len(availableTreasure) > 0
 
 def loseHealth(healthCards, amountLost):
@@ -119,6 +126,8 @@ if __name__ == "__main__":
             "dodge": [],
             "treasure": []
         }
+
+
         # loop of moves. Each cycle is one step further
         while True:
             # show player stats
@@ -143,30 +152,59 @@ if __name__ == "__main__":
             # list of cards used to attempt to beat a monster, door, or trap. Use len() to find num attempts
             actionAttempts = []
 
+            input("Press enter to continue. ")
+            clearScreen()
             # place cards on top of each other until a single move is over. ie battling a monster
             while True:
-
                 # if there's an action card already, ask if the player wants to use powerups etc instead of drawing
                 if len(actionCard) > 0:
-                    playerResponse = pyip.input
+                    appropriatePowerup = ENEMY_POWERUPS[actionCard[0].suit]
+                    userOptions = ["draw again"]
+                    if len(playerStats[appropriatePowerup]) == 1:
+                        userOptions.append(f"use {appropriatePowerup} powerup")
+                    if hasValidTreasure(actionCard[0]):
+                        userOptions.append("use treasure drop")
+                    if len(userOptions) > 1:
+                        choice = pyip.inputMenu(userOptions, numbered=True)
+                    else:
+                        input("Press enter to draw again.")
+                        choice = userOptions[0]
+                    if choice == "use treasure drop":
+                        # lose one treasure (lowest val) but beat this move
+                        print(f"You used your treasure to get past the {CARD_ALIASES.get(actionCard[0].suit)}!")
+                        break
+                    elif choice == f"use {appropriatePowerup} powerup":
+                        # lose powerup but pass the level.
+                        playerStats[appropriatePowerup] = []
+                        break
+                    else:
+                        # draw again
+                        pass
+                else:
+                    input("Press enter to draw a card. ")
+
                 # draw top card from deck
                 drawnCard = deck[-1]
                 moveCards.append(drawnCard)
                 deck.remove(drawnCard)
 
-                print(f"You draw a {drawnCard.name}!")
+                logging.debug(f"drew: {drawnCard.name}")
 
                 # do action depending on if deck is trap, monster, or door, and repeat until passed
                 if drawnCard.value == "Jack":
                     # add to powerups
                     if drawnCard.suit == "Spades":
                         playerStats["berserk"].append(drawnCard)
+                        print("You gained a Go Berserk powerup!")
                     elif drawnCard.suit == "Diamonds":
                         playerStats["disarm"].append(drawnCard)
+                        print("You gained a Disarm powerup!")
                     elif drawnCard.suit == "Clubs":
                         playerStats["lock pick"].append(drawnCard)
+                        print("You gained a Lock Pick powerup!")
                     else:
                         playerStats["dodge"].append(drawnCard)
+                        print("You gained a Dodge Blow powerup!")
 
                 elif drawnCard.value == "Ace":
                     # add burnt torch
@@ -179,6 +217,15 @@ if __name__ == "__main__":
                 elif drawnCard.value == "Queen":
                     # add divine favor if won
                     tempTreasure["queens"].append(drawnCard)
+                    if len(tempTreasure["queens"]) == 0:
+                        if len(actionCard) > 0:
+                            # if the queen can be used on an action card, use it 
+                            print("The divine intervention saved you!")
+                        else:
+                            print("The divine queen is with you! You will pass your next enemy.")
+                    else:
+                        # already have a queen
+                        print("You are extra blessed! Another queen is with you.")
 
                 elif drawnCard.value == "King":
                     # add king if won
@@ -187,11 +234,21 @@ if __name__ == "__main__":
                     # card must be either an action or encounter card
                     if len(actionCard) == 0:
                         # the card drawn is an action card
-                        print(f"You've encountered a {CARD_ALIASES.get(drawnCard.suit, "enemy")} of strength {drawnCard.value}!")
+                        print(f"You've encountered a {CARD_ALIASES.get(drawnCard.suit)} of strength {drawnCard.value}!")
                         actionCard.append(drawnCard)
+
+                        # if you have a divine intervention to use, use it immediately
+                        if len(tempTreasure["queens"]) > 0:
+                            print("The divine queen saves you!")
+                            break
                     else:
                         # card must beat the action card
-                        # give user choice to user powerup, treasure, or draw, depending on what it is
+                        print("This card must beat the action card.")
+                        passesEncounter = evalueateEncounter(drawnCard, actionCard[0])
+                        logging.debug(f"{passesEncounter = }")
+                        if passesEncounter:
+                            print("You survived!")
+                            break
                 
                 # BUG: logic error with all below
                 # elif drawnCard.suit == "Spades":
@@ -278,6 +335,7 @@ if __name__ == "__main__":
                 # returned safely
                 print("You returned safely! Let's count your treasure.")
                 countScore()
+                break
  
         again = pyip.inputYesNo("Would you like to play again? (y/n) ")
         if again == "no":
