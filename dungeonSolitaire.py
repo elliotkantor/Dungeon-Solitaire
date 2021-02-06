@@ -7,7 +7,7 @@ import banner
 import logging
 from os import system, name
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s -  %(levelname)s -  %(message)s')
-# logging.disable(logging.CRITICAL) # to disable logs after this
+logging.disable(logging.CRITICAL) # to disable logs after this
 
 # names of playing cards translated to game terms
 CARD_ALIASES = {
@@ -30,18 +30,20 @@ def clearScreen():
 		_ = system('clear')
 
 def getPlayerHealth():
-    playerHealth = int(healthCards[-1].value) - 1
+    playerHealth = len(healthCards)
     return playerHealth
 
 def checkIfLost(numBurntTorches, numCardsLeft, health):
     """Returns true if lost, false if did not lose"""
-    if (numBurntTorches >= 4 and len(playerStats["scroll"]) == 0) or numCardsLeft <= 0 or health <= 0:
+    global torchThreshhold
+    torchThreshold = 4
+    if (numBurntTorches >= torchThreshold and len(playerStats["scroll"]) == 0) or numCardsLeft <= 0 or health <= 0:
         return True
-    if numBurntTorches == 4 and len(playerStats["scroll"]) == 1:
+    if numBurntTorches == torchThreshold and len(playerStats["scroll"]) == 1:
         print("You've burnt four torches, so you use the Scroll of Light!")
         playerStats["scroll"] = []
-        # TODO: remove one burnt torch so you don't die on the next card
-        # didn't lose yet
+        torchThreshold += 1
+        # didn't lose yet so return False
     return False
 
 def showStats():
@@ -66,22 +68,6 @@ def evalueateEncounter(testCard, actionCard):
         return True
     return False
 
-
-# def hasValidTreasure(actionCard):
-#     """Returns true if the user can drop treasure to escape a monster"""
-#     treasureVals = []
-#     for king in playerStats["kings"]:
-#         treasureVals.append(10)
-#     if len(playerStats["scroll"]) > 0:
-#         treasureVals.append(6)
-#     logging.debug(playerStats)
-#     for card in playerStats["treasure"]:
-#         logging.debug(card.name)
-#         treasureVals.append(int(card.value))
-#     # filter available treasure to only that's big enough
-#     availableTreasure = [val for val in treasureVals if val >= int(actionCard.value)]
-# # return true if there is treasure (len > 0)
-#     return len(availableTreasure) > 0
 
 def getValidTreasure(actionCard):
     """Returns a list of valid treasure to be used on a given action card,
@@ -138,6 +124,7 @@ if __name__ == "__main__":
         stepsOut = 0
         lost = False
         playedCards = []  # store a multi-dimensional list of lists, with inner lists representing one "step"
+        discard = []
 
         playerStats = {
             "burnt torches": [],
@@ -179,6 +166,7 @@ if __name__ == "__main__":
             clearScreen()
             # place cards on top of each other until a single move is over. ie battling a monster
             while True:
+                endMove = False
                 # if there's an action card already, ask if the player wants to use powerups etc instead of drawing
                 if len(actionCard) > 0:
                     appropriatePowerup = ENEMY_POWERUPS[actionCard[0].suit]
@@ -196,21 +184,26 @@ if __name__ == "__main__":
                         # choose which treasure
                         treasureNames = [(card.name, card) for card in getValidTreasure(actionCard[0])]
                         treasureNames.append(("Go back", "Go back"))
-                        discardTreasure = pyip.inputMenu([t[0] for t in treasureNames], numbered=True, prompt="Choose which card to remove: ")
+                        discardTreasure = pyip.inputMenu([t[0] for t in treasureNames], numbered=True, prompt="Choose which card to remove: \n")
                         if discardTreasure == "Go back":
                             continue
                         else:
-                            pass
-                            # # add treasure face down on stack
-                            # moveCards.append(treasureNames[discardTreasure])
-                            # logging.debug(f"Chose {discardTreasure} so removed {treasureNames[discardTreasure]}.")
-                            # # lose treasure
-                            # if treasureNames[discardTreasure].suit == "King":
-                            #     playerStats["kings"].remove(treasureNames[discardTreasure])
-                            # elif treasureNames[discardTreasure].suit in ("Joker", "Black"):
-                            #     playerStats["scroll"].remove(treasureNames[discardTreasure])
-                            # else:
-                            #     playerStats["treasure"].remove(treasureNames[discardTreasure])
+                            # find object where name matches
+                            matchingName = []
+                            for name, obj in treasureNames:
+                                if name == discardTreasure:
+                                    matchingName.append(obj)
+                            assert len(matchingName) == 1, "Must find exactly one matching name"
+                            # add treasure face down on stack
+                            moveCards.append(matchingName[0])
+                            logging.debug(f"Chose {discardTreasure} so removed {matchingName[0]}.")
+                            # lose treasure
+                            if matchingName[0].suit == "King":
+                                playerStats["kings"].remove(matchingName[0])
+                            elif matchingName[0].suit in ("Joker", "Black"):
+                                playerStats["scroll"].remove(matchingName[0])
+                            else:
+                                playerStats["treasure"].remove(matchingName[0])
 
                         print(f"You used your treasure to get past the {CARD_ALIASES.get(actionCard[0].suit)}!")
                         # finish move
@@ -294,65 +287,65 @@ if __name__ == "__main__":
                         passesEncounter = evalueateEncounter(drawnCard, actionCard[0])
                         logging.debug(f"{passesEncounter = }")
                         if passesEncounter or len(tempTreasure["queens"]) > 0:
-                            print(f"You survived the {CARD_ALIASES.get(actionCard[0].suit)}!")
+                            print(f"You beat the {CARD_ALIASES.get(actionCard[0].suit)}!")
                             break
                         else:
-                            # drawn card does not pass. Depending on action card, lose health or cards, etc
-                            pass
+                            # TODO: drawn card does not pass. Depending on action card, lose health or cards, etc
+                            if actionCard[0].suit == "Spades":
+                                # monster
+                                damageTaken = int(actionCard[0].value) - int(drawnCard.value)
+                                healthCards = loseHealth(healthCards, damageTaken)
+                                print(f"You take {damageTaken} damage!")
+                                healthCards = loseHealth(healthCards, damageTaken)
+
+                            elif actionCard[0].suit == "Diamonds":
+                                # trap
+                                damageTaken = int(actionCard[0].value) - int(drawnCard.value)
+                                print(f"You take {damageTaken} damage and your turn is over. You do not get treasure.")
+                                healthCards = loseHealth(healthCards, damageTaken)
+                                # don't get treasure
+                                tempTreasure = {
+                                    "queens": [],
+                                    "treasure": [],
+                                    "kings": [],
+                                    "scroll": []
+                                }
+                                # end the move after checking health
+                                endMove = True
+                            else:
+                                # door
+                                numDiscarded = int(actionCard[0].value) - int(drawnCard.value)
+                                if len(getValidTreasure(actionCard[0])) > 0:
+                                    useTreasure = pyip.inputYesNo(f"You must discard {numDiscarded} cards. Would you like to use a treasure drop instead? (y/n) ")
+                                    if useTreasure == "yes":
+                                        # TODO: choose and use treasure
+                                        pass
+                                print(f"You lose {numDiscarded} cards to the discard pile.")
+                                for card in range(numDiscarded):
+                                    drawnCard = deck[-1]
+                                    if drawnCard.suit == "Ace":
+                                        playerStats["burnt torches"].append(drawnCard)
+                                        print(f"A discarded card is a burnt torch. You now have burnt {len(playerStats['burnt torch'])} torches.")
+                                    discard.append(drawnCard)
+                                    deck.remove(drawnCard)
+                                # no treasure
+                                tempTreasure = {
+                                    "queens": [],
+                                    "treasure": [],
+                                    "kings": [],
+                                    "scroll": []
+                                }
+                                endMove = True
+
                 
-                # BUG: logic error with all below
-                # elif drawnCard.suit == "Spades":
-                #     # monster
-                #     if len(actionCard) == 0:
-                #         print(f"You've encountered a monster of strength {actionCard.value}!")
-                #         actionCard.append(drawnCard)
-
-                #         # stop interaction if divine intervention
-                #         if len(tempTreasure["queens"]) > 0:
-                #             print("The divine intervention is here to save you!")
-                #             continue
-
-                #         userOptions = ["draw again"]
-                #         if len(playerStats["berserk"]) == 1:
-                #             userOptions.append("use Go Berserk powerup")
-                #         if hasValidTreasure(actionCard[0]):
-                #             userOptions.append("use treasure drop")
-                #         if len(userOptions) > 1:
-                #             choice = pyip.inputMenu(userOptions, numbered=True)
-                #         else:
-                #             choice = userOptions[0]
-                #         # TODO: do something with player choice
-                #     else:
-                #         # do something with output of evaluate encounter and break statement
-                #         beatsObstacle = evalueateEncounter(drawnCard, actionCard[0])
-                #         if beatsObstacle:
-                #             break
-                #         else:
-                #             # TODO: lose health by the amount of the difference in the monster and the drawn card
-                #             healthCards = loseHealth(healthCards, int(actionCard.value) - int(drawnCard.value))
-
-                # elif drawnCard.suit == "Diamonds":
-                #     # trap / treasure
-                #     if len(actionCard) == 0:
-                #         print("You've encountered a trap!")
-                #         actionCard.append(drawnCard)
-                #     else:
-                #         beatsObstacle = evalueateEncounter(drawnCard, actionCard[0])
-                #         if beatsObstacle:
-                #             # collect treasure
-                #             tempTreasure.extend([treasure for treasure in moveCards if treasure.suit == "Diamonds" and treasure is not actionCard])
-                #         else:
-                #             # TODO: lose health
-                #             pass
-
-
                 playerHealth = getPlayerHealth()
                 if checkIfLost(len(playerStats["burnt torches"]), len(deck), playerHealth):
                     # banner.die()
                     print("Game over!")
                     lost = True
                     break
-                # break  # for testing
+                elif endMove:
+                    break
     
             # change number of steps from start each move (not each card, though)
             if direction == "delve":
@@ -373,10 +366,12 @@ if __name__ == "__main__":
                 # returned safely
                 print("You returned safely! Let's count your treasure.")
                 kingsFound, score = countScore()
-                print(f"Your score is {kingsFound} / {score}. (Kings / Total Score).")
+                print(f"Your score is {len(kingsFound)} / {score}. (Kings / Total Score).")
                 break
  
         again = pyip.inputYesNo("Would you like to play again? (y/n) ")
         if again == "no":
             break
+        else:
+            clearScreen()
     print("Thanks for playing!")
