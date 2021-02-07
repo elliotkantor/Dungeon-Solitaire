@@ -7,7 +7,7 @@ import banner
 import logging
 from os import system, name
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s -  %(levelname)s -  %(message)s')
-logging.disable(logging.CRITICAL) # to disable logs after this
+# logging.disable(logging.CRITICAL) # to disable logs after this
 
 # names of playing cards translated to game terms
 CARD_ALIASES = {
@@ -101,6 +101,28 @@ def showInstructions():
     # TODO: add detailed instructions
     print("Insert instructions here")
 
+def chooseCard(cardList, goBack=True):
+    """Prints a list of card names and allows user
+    to choose a card based on number.
+    Returns corresponding card object
+    goBack determines if you want the option to go back"""
+
+    print("Choose a card: ")
+    for index, cardObj in enumerate(cardList):
+        print(f"{index + 1}. {cardObj.name}")
+    if goBack:
+        print(f"{len(cardList) + 1}. Go Back")
+        numChoice = pyip.inputInt("Enter a number: ", min=1, max=len(cardList) + 1)
+    else:
+        numChoice = pyip.inputInt("Enter a number: ", min=1, max=len(cardList))
+
+    if numChoice <= len(cardList):
+        chosenObj = cardList[numChoice - 1]
+    else:
+        chosenObj = "Go Back"
+    return chosenObj
+
+
 if __name__ == "__main__":
     # show intro title banner
     banner.intro()
@@ -182,28 +204,22 @@ if __name__ == "__main__":
                         choice = userOptions[0]
                     if choice == "use treasure drop":
                         # choose which treasure
-                        treasureNames = [(card.name, card) for card in getValidTreasure(actionCard[0])]
-                        treasureNames.append(("Go back", "Go back"))
-                        discardTreasure = pyip.inputMenu([t[0] for t in treasureNames], numbered=True, prompt="Choose which card to remove: \n")
-                        if discardTreasure == "Go back":
+                        treasureNames = getValidTreasure(actionCard[0])
+                        discardTreasure = chooseCard(treasureNames)
+                        if discardTreasure == "Go Back":
                             continue
                         else:
-                            # find object where name matches
-                            matchingName = []
-                            for name, obj in treasureNames:
-                                if name == discardTreasure:
-                                    matchingName.append(obj)
-                            assert len(matchingName) == 1, "Must find exactly one matching name"
                             # add treasure face down on stack
-                            moveCards.append(matchingName[0])
-                            logging.debug(f"Chose {discardTreasure} so removed {matchingName[0]}.")
+                            moveCards.append(discardTreasure)
+                            # BUG: always removes from treasure even when it's a king
                             # lose treasure
-                            if matchingName[0].suit == "King":
-                                playerStats["kings"].remove(matchingName[0])
-                            elif matchingName[0].suit in ("Joker", "Black"):
-                                playerStats["scroll"].remove(matchingName[0])
+                            logging.debug(f"{discardTreasure.name = }")
+                            if discardTreasure.suit == "King":
+                                playerStats["kings"].remove(discardTreasure)
+                            elif discardTreasure.suit in ("Joker", "Black"):
+                                playerStats["scroll"].remove(discardTreasure)
                             else:
-                                playerStats["treasure"].remove(matchingName[0])
+                                playerStats["treasure"].remove(discardTreasure)
 
                         print(f"You used your treasure to get past the {CARD_ALIASES.get(actionCard[0].suit)}!")
                         # finish move
@@ -285,12 +301,29 @@ if __name__ == "__main__":
                         # card must beat the action card
                         print(f"You draw a {drawnCard.name}!")
                         passesEncounter = evalueateEncounter(drawnCard, actionCard[0])
+
                         logging.debug(f"{passesEncounter = }")
                         if passesEncounter or len(tempTreasure["queens"]) > 0:
                             print(f"You beat the {CARD_ALIASES.get(actionCard[0].suit)}!")
+                            # gain treasure if it's a trap
+                            if actionCard[0].suit == "Diamonds":
+                                # gain treasure from all moveCards
+                                treasureGained = []
+                                for treasureCard in moveCards:
+                                    if treasureCard.suit == "Diamonds":
+                                        treasureGained.append(treasureCard)
+                                if len(treasureGained) == len(moveCards):
+                                    # if all are treasure cards, leave one behind (choose)
+                                    print("You must choose one treasure card to leave behind to mark your turn.")
+                                    # choose card to leave behind
+                                    possibleTreasure = getValidTreasure(actionCard[0])
+                                    treasureLeft = chooseCard(possibleTreasure, goBack=False)
+                                    treasureGained.remove(treasureLeft)
+                                tempTreasure["treasure"].extend(treasureGained)
+                                moveCards2 = [card for card in moveCards if card not in treasureGained]
+                                moveCards = moveCards2
                             break
                         else:
-                            # TODO: drawn card does not pass. Depending on action card, lose health or cards, etc
                             if actionCard[0].suit == "Spades":
                                 # monster
                                 damageTaken = int(actionCard[0].value) - int(drawnCard.value)
@@ -374,4 +407,4 @@ if __name__ == "__main__":
             break
         else:
             clearScreen()
-    print("Thanks for playing!")
+    print("Thanks for playing! :)")
