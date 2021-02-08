@@ -206,10 +206,11 @@ if __name__ == "__main__":
             }
 
 
-            if direction == "delve" and stepsOut > 0:
+            if direction == "delve" and stepsOut > 1:
                 turnAroundInput = pyip.inputInt("Would you like to (1) continue the delve or (2) begin to head back? ", min=1, max=2)
                 if turnAroundInput == 2:
                     direction = "retreat"
+                    stepsOut -= 1
 
             # list of all cards played in one move / "step"
             moveCards = []  
@@ -452,6 +453,7 @@ if __name__ == "__main__":
  
         showPast = pyip.inputYesNo("\nWould you like to see your moves from this game? (y/n) ")
         if showPast == "yes":
+            print()
             showPastPlays()
 
         again = pyip.inputYesNo("\nWould you like to play again? (y/n) ")
