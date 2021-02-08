@@ -7,7 +7,7 @@ import banner
 import logging
 from os import system, name
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s -  %(levelname)s -  %(message)s')
-# logging.disable(logging.CRITICAL) # to disable logs after this
+logging.disable(logging.CRITICAL) # to disable logs after this
 
 # names of playing cards translated to game terms
 CARD_ALIASES = {
@@ -55,7 +55,6 @@ def countScore():
     kingsFound = playerStats["kings"]
     # 10 per king, face value of treasure, 6 for scroll
     try:
-        # TODO: ensure there's no logic error here
         treasureValues = sum([int(item.value) for item in playerStats["treasure"]])
     except:
         treasureValues = 0
@@ -97,10 +96,6 @@ def loseHealth(healthCards, amountLost):
     healthCards = healthCards[:-amountLost]
     return healthCards
 
-def showInstructions():
-    # TODO: add detailed instructions
-    print("Insert instructions here")
-
 def chooseCard(cardList, goBack=True):
     """Prints a list of card names and allows user
     to choose a card based on number.
@@ -128,7 +123,7 @@ if __name__ == "__main__":
     banner.intro()
 
     if pyip.inputYesNo("Would you like to read the instructions? (y/n) ") == "yes":
-        showInstructions()
+        banner.showInstructions()
 
     # game loop. Replay after you lose
     while True:
@@ -211,10 +206,9 @@ if __name__ == "__main__":
                         else:
                             # add treasure face down on stack
                             moveCards.append(discardTreasure)
-                            # BUG: always removes from treasure even when it's a king
                             # lose treasure
                             logging.debug(f"{discardTreasure.name = }")
-                            if discardTreasure.suit == "King":
+                            if discardTreasure.value == "King":
                                 playerStats["kings"].remove(discardTreasure)
                             elif discardTreasure.suit in ("Joker", "Black"):
                                 playerStats["scroll"].remove(discardTreasure)
@@ -351,8 +345,21 @@ if __name__ == "__main__":
                                 if len(getValidTreasure(actionCard[0])) > 0:
                                     useTreasure = pyip.inputYesNo(f"You must discard {numDiscarded} cards. Would you like to use a treasure drop instead? (y/n) ")
                                     if useTreasure == "yes":
-                                        # TODO: choose and use treasure
-                                        pass
+                                        # choose and use treasure
+                                        chosenCard = chooseCard(getValidTreasure(actionCard[0]))
+                                        if chosenCard != "Go Back":
+                                            print("You drop a treasure and pass through the door. ")
+                                            moveCards.append(chosenCard)
+                                            if chosenCard.value == "King":
+                                                playerStats["kings"].remove(chosenCard)
+                                            elif chosenCard.suit in ("Joker", "Black"):
+                                                playerStats["scroll"].remove(chosenCard)
+                                            else:
+                                                playerStats["treasure"].remove(chosenCard)
+
+                                            break
+
+
                                 print(f"You lose {numDiscarded} cards to the discard pile.")
                                 for card in range(numDiscarded):
                                     drawnCard = deck[-1]
@@ -372,9 +379,10 @@ if __name__ == "__main__":
 
                 
                 playerHealth = getPlayerHealth()
+
                 if checkIfLost(len(playerStats["burnt torches"]), len(deck), playerHealth):
-                    # banner.die()
-                    print("Game over!")
+                    banner.gameOver()
+                    # print("Game over!")
                     lost = True
                     break
                 elif endMove:
@@ -394,7 +402,6 @@ if __name__ == "__main__":
             playerStats["scroll"].extend(tempTreasure["scroll"])
             playerStats["kings"].extend(tempTreasure["kings"])
             playerStats["treasure"].extend(tempTreasure["treasure"])
-
             if stepsOut <= 0 and direction == "retreat":
                 # returned safely
                 print("You returned safely! Let's count your treasure.")

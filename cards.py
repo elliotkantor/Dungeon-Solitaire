@@ -53,12 +53,6 @@ def discard(card):
     discard.append(card)
     availableCards.remove(card)
 
-
-# if __name__ == "__main__":
-#     hands = dealCards(5, 3)
-#     for hand in hands:
-#         print(hand)
-
 # make a list of all cards, in a sorted order
 if __name__ == "__main__":
     allCards = [Card(value, suit) for suit in suits for value in values]
