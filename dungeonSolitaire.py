@@ -107,6 +107,8 @@ def chooseCard(cardList, goBack=True):
     Returns corresponding card object
     goBack determines if you want the option to go back"""
 
+    assert len(cardList) > 1, "List of cards must have more than 1 item"
+
     print("Choose a card: ")
     for index, cardObj in enumerate(cardList):
         print(f"{index + 1}. {cardObj.name}")
@@ -131,14 +133,22 @@ def showPastPlays():
 
     if len(discard) > 0:
         print("Discard pile: ")
-    for card in discard:
-        print(card.name)
-    print()
-
-    print("The hand: ")
-    for cardList in playerStats.values():
-        for card in cardList:
+        for card in discard:
             print(card.name)
+        print()
+
+    if hasItemsInHand():
+        print("The hand: ")
+        for cardList in playerStats.values():
+            for card in cardList:
+                print(card.name)
+
+def hasItemsInHand():
+    """Returns true if there are items in the player's hand"""
+    for cardList in playerStats.values():
+        if len(cardList) > 0:
+            return True
+    return False
 
 def damageOrDodge(damageTaken):
     global healthCards
@@ -242,7 +252,10 @@ if __name__ == "__main__":
                     if choice == "use treasure drop":
                         # choose which treasure
                         treasureNames = getValidTreasure(actionCard[0])
-                        discardTreasure = chooseCard(treasureNames)
+                        if len(treasureNames) > 1:
+                            discardTreasure = chooseCard(treasureNames)
+                        else:
+                            discardTreasure = treasureNames[0]
                         if discardTreasure == "Go Back":
                             continue
                         else:
@@ -312,7 +325,7 @@ if __name__ == "__main__":
                 elif drawnCard.suit == "Joker":
                     # obtain scroll of light
                     tempTreasure["scroll"].append(drawnCard)
-                    print("You gain the scroll of light!")
+                    print("You found the scroll of light!")
                     moveCards.remove(drawnCard)
 
                 elif drawnCard.value == "Queen":
@@ -359,11 +372,11 @@ if __name__ == "__main__":
                                     treasureGained.append(treasureCard)
                             if len(treasureGained) == len(moveCards):
                                 # if all are treasure cards, leave one behind (choose)
-                                print("You must choose one treasure card to leave behind to mark your turn.")
+                                print("\nYou must choose one treasure card to leave behind to mark your turn.")
                                 # choose card to leave behind
-                                possibleTreasure = getValidTreasure(actionCard[0])
-                                treasureLeft = chooseCard(possibleTreasure, goBack=False)
+                                treasureLeft = chooseCard(moveCards, goBack=False)
                                 treasureGained.remove(treasureLeft)
+                                print(f"You left behind the {treasureLeft.name}!\n")
                             tempTreasure["treasure"].extend(treasureGained)
                             moveCards2 = [card for card in moveCards if card not in treasureGained]
                             moveCards = moveCards2
