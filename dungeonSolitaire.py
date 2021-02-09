@@ -459,6 +459,7 @@ if __name__ == "__main__":
             playerStats["treasure"].extend(tempTreasure["treasure"])
             if stepsOut <= 0 and direction == "retreat":
                 # returned safely
+                banner.youWin()
                 print("\nYou returned safely! Let's count your treasure.")
                 kingsFound, score = countScore()
                 print(f"\nYour score is {len(kingsFound)} / {score}. (Kings / Total Score).")
